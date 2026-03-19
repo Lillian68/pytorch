@@ -1456,10 +1456,17 @@ def lu_unpack_meta(
     unpack_data: bool = True,
     unpack_pivots: bool = True,
 ) -> tuple[Tensor, Tensor, Tensor]:
+    lu_dim = LU.ndim
+    lu_shape = LU.shape
     torch._check(
-        LU.ndim >= 2,
-        lambda: f"torch.lu_unpack: Expected tensor with 2 or more dimensions. Got size: {LU.shape} instead",
+        lu_dim >= 2,
+        lambda: f"torch.lu_unpack: Expected tensor with 2 or more dimensions. Got size: {lu_shape} instead",
     )
+
+    m = lu_shape[-2]
+    n = lu_shape[-1]
+    k = min(m, n)
+
     if unpack_pivots:
         torch._check(
             pivots.dtype == torch.int32,
@@ -1468,10 +1475,32 @@ def lu_unpack_meta(
                 "Note: this function is intended to be used with the output produced by torch.linalg.lu_factor"
             ),
         )
-    sizes = list(LU.shape)
-    m = sizes[-2]
-    n = sizes[-1]
-    k = min(m, n)
+
+        pivots_dim = pivots.ndim
+        torch._check(
+            pivots_dim == lu_dim - 1,
+            lambda: (
+                f"torch.lu_unpack: Expected LU_pivots to have {lu_dim - 1} dimensions, but got {pivots_dim}"
+            ),
+        )
+
+        pivots_last_dim = pivots.shape[-1]
+        torch._check(
+            pivots_last_dim == k,
+            lambda: (
+                f"torch.lu_unpack: Expected the last dimension of LU_pivots to be of size {k}, but got {pivots_last_dim}"
+            ),
+        )
+
+        batch_dims_lu = lu_shape[:-2]
+        batch_dims_pivots = pivots.shape[:-1]
+        torch._check(
+            batch_dims_pivots == batch_dims_lu,
+            lambda: (
+                f"torch.lu_unpack: Expected batch dimensions of LU_pivots to be {batch_dims_lu}, but got {batch_dims_pivots}"
+            ),
+        )
+    sizes = list(lu_shape)
     sizes[-1] = m
     if unpack_pivots:
         P = LU.new_empty(sizes)
